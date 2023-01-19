@@ -649,6 +649,7 @@ void SceneImportSettings::_select(Tree *p_from, String p_type, String p_id) {
 		//NodeData &nd=node_map[p_id];
 		material_tree->deselect_all();
 		mesh_tree->deselect_all();
+		animation_tree->deselect_all();
 		NodeData &nd = node_map[p_id];
 
 		MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(nd.node);
@@ -704,16 +705,8 @@ void SceneImportSettings::_select(Tree *p_from, String p_type, String p_id) {
 
 		MeshData &md = mesh_map[p_id];
 		if (md.mesh_node != nullptr) {
-			if (p_from != mesh_tree) {
-				md.mesh_node->uncollapse_tree();
-				md.mesh_node->select(0);
-				mesh_tree->ensure_cursor_is_visible();
-			}
-			if (p_from != scene_tree) {
-				md.scene_node->uncollapse_tree();
-				md.scene_node->select(0);
-				scene_tree->ensure_cursor_is_visible();
-			}
+			TreeItem *exclusion_nodes[] = { md.mesh_node, md.scene_node };
+			_uncollapse_and_select(p_from, exclusion_nodes, 2);
 		}
 
 		mesh_preview->set_mesh(md.mesh);
@@ -736,21 +729,8 @@ void SceneImportSettings::_select(Tree *p_from, String p_type, String p_id) {
 		material_preview->set_material(md.material);
 		mesh_preview->set_mesh(material_preview);
 
-		if (p_from != mesh_tree) {
-			md.mesh_node->uncollapse_tree();
-			md.mesh_node->select(0);
-			mesh_tree->ensure_cursor_is_visible();
-		}
-		if (p_from != scene_tree) {
-			md.scene_node->uncollapse_tree();
-			md.scene_node->select(0);
-			scene_tree->ensure_cursor_is_visible();
-		}
-		if (p_from != material_tree) {
-			md.material_node->uncollapse_tree();
-			md.material_node->select(0);
-			material_tree->ensure_cursor_is_visible();
-		}
+		TreeItem *exclusion_nodes[] = { md.mesh_node, md.scene_node, md.material_node };
+		_uncollapse_and_select(p_from, exclusion_nodes, 3);
 
 		scene_import_settings_data->settings = &md.settings;
 		scene_import_settings_data->category = ResourceImporterScene::INTERNAL_IMPORT_CATEGORY_MATERIAL;
@@ -800,38 +780,29 @@ void SceneImportSettings::_select(Tree *p_from, String p_type, String p_id) {
 	scene_import_settings_data->notify_property_list_changed();
 }
 
-void SceneImportSettings::_material_tree_selected() {
+void SceneImportSettings::_tree_selected(Tree* p_selected) {
 	if (selecting) {
 		return;
 	}
-	TreeItem *item = material_tree->get_selected();
+	TreeItem *item = p_selected->get_selected();
 	String type = item->get_meta("type");
 	String import_id = item->get_meta("import_id");
 
-	_select(material_tree, type, import_id);
+	_select(p_selected, type, import_id);
 }
 
-void SceneImportSettings::_mesh_tree_selected() {
-	if (selecting) {
-		return;
+void SceneImportSettings::_uncollapse_and_select(const Tree *p_from, TreeItem *p_excluded_nodes[], size_t p_nodes) {
+
+	for (int i = 0; i < p_nodes; i++) {
+		TreeItem *excl_node = p_excluded_nodes[i];
+
+		if (p_from != excl_node->get_tree()) {
+			excl_node->uncollapse_tree();
+			excl_node->select(0);
+			excl_node->get_tree()->ensure_cursor_is_visible();
+		}
 	}
 
-	TreeItem *item = mesh_tree->get_selected();
-	String type = item->get_meta("type");
-	String import_id = item->get_meta("import_id");
-
-	_select(mesh_tree, type, import_id);
-}
-
-void SceneImportSettings::_scene_tree_selected() {
-	if (selecting) {
-		return;
-	}
-	TreeItem *item = scene_tree->get_selected();
-	String type = item->get_meta("type");
-	String import_id = item->get_meta("import_id");
-
-	_select(scene_tree, type, import_id);
 }
 
 void SceneImportSettings::_viewport_input(const Ref<InputEvent> &p_input) {
@@ -1229,6 +1200,8 @@ void SceneImportSettings::_save_dir_confirm() {
 SceneImportSettings::SceneImportSettings() {
 	singleton = this;
 
+	SceneImportSettings::ElementType::_initialize_members();
+
 	VBoxContainer *main_vb = memnew(VBoxContainer);
 	add_child(main_vb);
 	HBoxContainer *menu_hb = memnew(HBoxContainer);
@@ -1267,20 +1240,25 @@ SceneImportSettings::SceneImportSettings() {
 	scene_tree = memnew(Tree);
 	scene_tree->set_name(TTR("Scene"));
 	data_mode->add_child(scene_tree);
-	scene_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_scene_tree_selected));
+	scene_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_tree_selected, scene_tree));
 
 	mesh_tree = memnew(Tree);
 	mesh_tree->set_name(TTR("Meshes"));
 	data_mode->add_child(mesh_tree);
 	mesh_tree->set_hide_root(true);
-	mesh_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_mesh_tree_selected));
+	mesh_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_tree_selected, mesh_tree));
 
 	material_tree = memnew(Tree);
 	material_tree->set_name(TTR("Materials"));
 	data_mode->add_child(material_tree);
-	material_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_material_tree_selected));
-
 	material_tree->set_hide_root(true);
+	material_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_tree_selected, material_tree));
+
+	animation_tree = memnew(Tree);
+	animation_tree->set_name(TTR("Animations"));
+	data_mode->add_child(animation_tree);
+	animation_tree->set_hide_root(true);
+	animation_tree->connect("cell_selected", callable_mp(this, &SceneImportSettings::_tree_selected, animation_tree));
 
 	SubViewportContainer *vp_container = memnew(SubViewportContainer);
 	vp_container->set_h_size_flags(Control::SIZE_EXPAND_FILL);

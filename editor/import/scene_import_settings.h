@@ -60,6 +60,34 @@ class SceneImportSettings : public ConfirmationDialog {
 		ACTION_CHOOSE_ANIMATION_SAVE_PATHS,
 	};
 
+	struct ElementType {
+
+		inline static int _global_index = 0;
+
+		public:
+			static const ElementType ELEMENT_NODE;
+			static const ElementType ELEMENT_MESH;
+			static const ElementType ELEMENT_MATERIAL;
+			static const ElementType ELEMENT_ANIMATION;
+
+			static void _initialize_members() {
+				static ElementType ELEMENT_NODE(String("Node"));
+				static ElementType ELEMENT_MESH(String("Mesh"));
+				static ElementType ELEMENT_MATERIAL(String("Material"));
+				static ElementType ELEMENT_ANIMATION(String("Animation"));
+			}
+
+			String &type_name;
+			const int index;
+
+			ElementType(String &p_type_name) :
+					type_name(p_type_name), index(_global_index++) {}
+
+			ElementType(ElementType &p_other) = delete;
+
+	};
+
+
 	Node *scene = nullptr;
 
 	HSplitContainer *tree_split = nullptr;
@@ -68,6 +96,7 @@ class SceneImportSettings : public ConfirmationDialog {
 	Tree *scene_tree = nullptr;
 	Tree *mesh_tree = nullptr;
 	Tree *material_tree = nullptr;
+	Tree *animation_tree = nullptr;
 
 	EditorInspector *inspector = nullptr;
 
@@ -151,9 +180,9 @@ class SceneImportSettings : public ConfirmationDialog {
 	void _update_view_gizmos();
 	void _update_camera();
 	void _select(Tree *p_from, String p_type, String p_id);
-	void _material_tree_selected();
-	void _mesh_tree_selected();
-	void _scene_tree_selected();
+
+	void _tree_selected(Tree *p_selected);
+	void _uncollapse_and_select(const Tree *p_from, TreeItem* p_excluded_nodes[], size_t p_nodes);
 
 	void _viewport_input(const Ref<InputEvent> &p_input);
 
